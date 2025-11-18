@@ -68,6 +68,159 @@ class _VocabularyListScreenState extends State<VocabularyListScreen> {
     return filtered;
   }
 
+  Future<void> _exportData() async {
+    final provider = Provider.of<VocabularyProvider>(context, listen: false);
+
+    if (provider.vocabularies.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('エクスポートする単語がありません')),
+      );
+      return;
+    }
+
+    try {
+      // ローディング表示
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      await provider.exportAndShare();
+
+      if (mounted) {
+        Navigator.pop(context); // ローディング閉じる
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${provider.vocabularies.length}個の単語をエクスポートしました'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // ローディング閉じる
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('エクスポートに失敗しました: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _importData() async {
+    final provider = Provider.of<VocabularyProvider>(context, listen: false);
+
+    // 確認ダイアログ
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('データをインポート'),
+        content: const Text(
+          'バックアップファイルから単語データをインポートします。\n\n'
+          '既存の単語と重複する場合は、より高い統計データが保持されます。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('ファイルを選択'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      // ローディング表示
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      final result = await provider.importFromFile();
+
+      if (mounted) {
+        Navigator.pop(context); // ローディング閉じる
+
+        if (result.success) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('インポート完了'),
+              content: Text(
+                '新規追加: ${result.importedCount}個\n'
+                '更新: ${result.updatedCount}個\n'
+                'スキップ: ${result.skippedCount}個\n'
+                '合計: ${result.totalCount}個',
+              ),
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('インポートに失敗しました: ${result.errorMessage}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // ローディング閉じる
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('エラーが発生しました: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showInfoDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('使い方'),
+        content: const Text(
+          '• 検索バーで単語を検索\n'
+          '• フィルターアイコンで正答率別に表示\n'
+          '• 右下の「+」ボタンで新しい単語を追加\n'
+          '• 単語カードをタップして編集\n'
+          '• 左にスワイプして削除\n'
+          '• 「テスト」タブでテストを開始\n\n'
+          '【データバックアップ】\n'
+          '• メニュー > エクスポートでバックアップ作成\n'
+          '• メニュー > インポートで復元',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showFilterDialog() {
     showDialog(
       context: context,
@@ -267,30 +420,54 @@ class _VocabularyListScreenState extends State<VocabularyListScreen> {
             onPressed: _showFilterDialog,
             tooltip: '正答率でフィルター',
           ),
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('使い方'),
-                  content: const Text(
-                    '• 検索バーで単語を検索\n'
-                    '• フィルターアイコンで正答率別に表示\n'
-                    '• 右下の「+」ボタンで新しい単語を追加\n'
-                    '• 単語カードをタップして編集\n'
-                    '• 左にスワイプして削除\n'
-                    '• 「テスト」タブでテストを開始',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('OK'),
-                    ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              switch (value) {
+                case 'export':
+                  _exportData();
+                  break;
+                case 'import':
+                  _importData();
+                  break;
+                case 'info':
+                  _showInfoDialog();
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'export',
+                child: Row(
+                  children: [
+                    Icon(Icons.upload_file),
+                    SizedBox(width: 12),
+                    Text('データをエクスポート'),
                   ],
                 ),
-              );
-            },
+              ),
+              const PopupMenuItem(
+                value: 'import',
+                child: Row(
+                  children: [
+                    Icon(Icons.download),
+                    SizedBox(width: 12),
+                    Text('データをインポート'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'info',
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline),
+                    SizedBox(width: 12),
+                    Text('使い方'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
