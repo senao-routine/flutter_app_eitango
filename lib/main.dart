@@ -25,7 +25,7 @@ class MyApp extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (context) => VocabularyProvider()..initialize(),
       child: MaterialApp(
-        title: '英単語学習アプリ',
+        title: 'これだけ英単語',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(
