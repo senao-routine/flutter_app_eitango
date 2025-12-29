@@ -24,3 +24,13 @@ Thumbs.db
 
 # Keep lib/ directory for source code!
 
+
+# Android signing keys (セキュリティのため)
+android/key.properties
+*.jks
+*.keystore
+
+# Android signing keys (セキュリティのため)
+android/key.properties
+*.jks
+*.keystore
